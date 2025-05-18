@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 21 5% 18%; /* #32302c */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 60 5% 97%; /* #f8f8f7 */
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221 83% 53%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 0 0% 10%; /* #191919 */
+    --foreground: 0 0% 83%; /* #d4d4d4 */
+    --card: 0 0% 13%; /* #202020 */
+    --card-foreground: 0 0% 83%; /* #d4d4d4 */
+    --popover: 0 0% 13%; /* #202020 */
+    --popover-foreground: 0 0% 83%; /* #d4d4d4 */
+    --primary: 0 0% 83%; /* #d4d4d4 */
+    --primary-foreground: 0 0% 10%; /* #191919 */
+    --secondary: 0 0% 13%; /* #202020 */
+    --secondary-foreground: 0 0% 83%; /* #d4d4d4 */
+    --muted: 0 0% 18%; /* #2f2f2f */
+    --muted-foreground: 0 0% 83%; /* #d4d4d4 */
+    --accent: 0 0% 18%; /* #2f2f2f */
+    --accent-foreground: 0 0% 83%; /* #d4d4d4 */
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 83%; /* #d4d4d4 */
+    --border: 0 0% 18%; /* #2f2f2f */
+    --input: 0 0% 18%; /* #2f2f2f */
+    --ring: 224.3 76.3% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
