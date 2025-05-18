@@ -181,15 +181,13 @@ export function HolidayPlanner() {
         <div className="flex justify-between items-center p-4">
           {/* Mobile menu button */}
           {isMobile && (
-            <Button 
-              variant="ghost" 
-              size="icon"
+            <button
+             
               onClick={() => setOpen(!open)}
-              className="mr-2"
+              className=" bg-[#1a1a1a] mr-4 "
             >
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Toggle menu</span>
-            </Button>
+              <Menu size={25}  className="text-[#d4d4d4]" />
+            </button>
           )}
           
           {/* Show active view title on mobile */}

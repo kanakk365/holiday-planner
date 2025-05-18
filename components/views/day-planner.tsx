@@ -2,25 +2,8 @@
 
 // Define types for our data structure
 import { useState } from "react"
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-  DragOverEvent,
-  DragStartEvent
-} from "@dnd-kit/core"
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  useSortable
-} from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
+import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd"
+import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -231,116 +214,65 @@ export function DayPlanner() {
     dayId: string
   } | null>(null)
 
-  // State for active drag
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [activeDay, setActiveDay] = useState<string | null>(null);
+  const onDragEnd = (result: DropResult) => {
+    const { destination, source, draggableId } = result
 
-  // Initialize sensors for keyboard and pointer interactions
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
+    // If there's no destination or if the item was dropped back in the same place
+    if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) {
+      return
+    }
 
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    setActiveId(active.id as string);
-    
-    // Find which day this activity belongs to
-    for (const dayId of data.dayOrder) {
-      if (data.days[dayId].activityIds.includes(active.id as string)) {
-        setActiveDay(dayId);
-        break;
+    const sourceDay = data.days[source.droppableId]
+    const destDay = data.days[destination.droppableId]
+
+    // Moving within the same day
+    if (sourceDay.id === destDay.id) {
+      const newActivityIds = Array.from(sourceDay.activityIds)
+      newActivityIds.splice(source.index, 1)
+      newActivityIds.splice(destination.index, 0, draggableId)
+
+      const newDay = {
+        ...sourceDay,
+        activityIds: newActivityIds,
       }
-    }
-  };
 
-  const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event;
-    
-    if (!over) return;
-    
-    // Extract the dayId from the over.id (formatted as "day-container-{dayId}")
-    const overId = String(over.id);
-    if (overId.startsWith('day-container-')) {
-      const overDayId = overId.replace('day-container-', '');
-      
-      // If dragging over a different day container
-      if (activeDay !== overDayId && activeId) {
-        // Move the activity to the new day
-        setData(prev => {
-          const sourceDayId = activeDay as string;
-          const targetDayId = overDayId;
-          
-          const sourceDay = prev.days[sourceDayId];
-          const targetDay = prev.days[targetDayId];
-          
-          // Remove from source day
-          const newSourceActivityIds = sourceDay.activityIds.filter(id => id !== activeId);
-          
-          // Add to target day
-          const newTargetActivityIds = [...targetDay.activityIds, activeId];
-          
-          return {
-            ...prev,
-            days: {
-              ...prev.days,
-              [sourceDayId]: {
-                ...sourceDay,
-                activityIds: newSourceActivityIds
-              },
-              [targetDayId]: {
-                ...targetDay,
-                activityIds: newTargetActivityIds
-              }
-            }
-          };
-        });
-        
-        // Update active day reference
-        setActiveDay(overDayId);
+      const newData = {
+        ...data,
+        days: {
+          ...data.days,
+          [newDay.id]: newDay,
+        },
       }
-    }
-  };
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    
-    if (!over) {
-      setActiveId(null);
-      setActiveDay(null);
-      return;
+      setData(newData)
+      return
     }
-    
-    if (active.id !== over.id && activeDay) {
-      setData(prev => {
-        const day = prev.days[activeDay];
-        const oldIndex = day.activityIds.findIndex(id => id === active.id);
-        const newIndex = day.activityIds.findIndex(id => id === over.id);
-        
-        if (oldIndex !== -1 && newIndex !== -1) {
-          const newActivityIds = arrayMove(day.activityIds, oldIndex, newIndex);
-          
-          return {
-            ...prev,
-            days: {
-              ...prev.days,
-              [activeDay]: {
-                ...day,
-                activityIds: newActivityIds
-              }
-            }
-          };
-        }
-        
-        return prev;
-      });
+
+    // Moving from one day to another
+    const sourceActivityIds = Array.from(sourceDay.activityIds)
+    sourceActivityIds.splice(source.index, 1)
+    const newSourceDay = {
+      ...sourceDay,
+      activityIds: sourceActivityIds,
     }
-    
-    // Reset active states
-    setActiveId(null);
-    setActiveDay(null);
+
+    const destActivityIds = Array.from(destDay.activityIds)
+    destActivityIds.splice(destination.index, 0, draggableId)
+    const newDestDay = {
+      ...destDay,
+      activityIds: destActivityIds,
+    }
+
+    const newData = {
+      ...data,
+      days: {
+        ...data.days,
+        [newSourceDay.id]: newSourceDay,
+        [newDestDay.id]: newDestDay,
+      },
+    }
+
+    setData(newData)
   };
 
   const handleAddActivity = () => {
@@ -454,14 +386,50 @@ export function DayPlanner() {
       assignees: updatedAssignees,
     }
 
-    // Update state
-    setData({
-      ...data,
-      activities: {
-        ...data.activities,
-        [currentActivity.id]: updatedActivity,
-      },
-    })
+    const oldDayId = currentActivity.dayId;
+    const newDayId = currentActivity.dayId;
+    const hasChangedDay = oldDayId !== newDayId;
+
+    if (hasChangedDay) {
+      // Handle moving activity between days
+      setData(prev => {
+        // Remove from old day
+        const oldDay = prev.days[oldDayId];
+        const newOldDayActivityIds = oldDay.activityIds.filter(id => id !== currentActivity.id);
+        
+        // Add to new day
+        const newDay = prev.days[newDayId];
+        const newDayActivityIds = [...newDay.activityIds, currentActivity.id];
+        
+        return {
+          ...prev,
+          activities: {
+            ...prev.activities,
+            [currentActivity.id]: updatedActivity,
+          },
+          days: {
+            ...prev.days,
+            [oldDayId]: {
+              ...oldDay,
+              activityIds: newOldDayActivityIds
+            },
+            [newDayId]: {
+              ...newDay,
+              activityIds: newDayActivityIds
+            }
+          }
+        };
+      });
+    } else {
+      // Just update the activity, no day change
+      setData({
+        ...data,
+        activities: {
+          ...data.activities,
+          [currentActivity.id]: updatedActivity,
+        },
+      });
+    }
 
     // Reset and close dialog
     setCurrentActivity(null)
@@ -511,6 +479,38 @@ export function DayPlanner() {
     })
   }
 
+  const handleDeleteDay = (dayId: string) => {
+    // Don't allow deleting the unassigned section
+    if (dayId === "unassigned") return
+    
+    // Move all activities from this day to the unassigned section
+    const dayToDelete = data.days[dayId]
+    const unassignedDay = data.days["unassigned"]
+    
+    // Update unassigned activities
+    const updatedUnassignedActivityIds = [...unassignedDay.activityIds, ...dayToDelete.activityIds]
+    
+    // Create new days object without the deleted day
+    const newDays = { ...data.days }
+    delete newDays[dayId]
+    
+    // Update unassigned section with the moved activities
+    newDays["unassigned"] = {
+      ...unassignedDay,
+      activityIds: updatedUnassignedActivityIds,
+    }
+    
+    // Update the day order to remove the deleted day
+    const newDayOrder = data.dayOrder.filter(id => id !== dayId)
+    
+    // Update state
+    setData({
+      ...data,
+      days: newDays,
+      dayOrder: newDayOrder,
+    })
+  }
+
   // Sort activities by time for each day
   const sortActivitiesByTime = (activityIds: string[]) => {
     return [...activityIds].sort((a, b) => {
@@ -524,7 +524,7 @@ export function DayPlanner() {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
         <h1 className="text-2xl font-bold">Day-by-Day Planner</h1>
-        <div className="flex gap-2">
+        <div className="flex sm:gap-2 gap-20 ">
           <Button
             onClick={() => {
               // Reset form and open dialog
@@ -542,7 +542,7 @@ export function DayPlanner() {
             <Plus className="mr-2 h-4 w-4" /> Add Activity
           </Button>
 
-          <Button variant="outline" onClick={addNewDay}>
+          <Button variant="outline" className="p-2" onClick={addNewDay}>
             <PlusCircle className="mr-2 h-4 w-4" /> New Day
           </Button>
         </div>
@@ -806,17 +806,10 @@ export function DayPlanner() {
       )}
 
       <div>
-        <DndContext 
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
+        <DragDropContext onDragEnd={onDragEnd}>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {data.dayOrder.map((dayId) => {
               const day = data.days[dayId]
-              const activities = day.activityIds.map((activityId) => data.activities[activityId])
               const sortedActivityIds = sortActivitiesByTime(day.activityIds)
 
               return (
@@ -833,178 +826,181 @@ export function DayPlanner() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => {
-                                // Edit day functionality
-                                console.log("Edit day", day.id)
-                              }}
+                              onClick={() => handleDeleteDay(day.id)}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-100"
                             >
-                              <Edit2 className="h-4 w-4" />
-                              <span className="sr-only">Edit</span>
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">Delete</span>
                             </Button>
                           </div>
                         )}
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div 
-                        id={`day-container-${day.id}`}
-                        className={cn(
-                          "rounded-md min-h-[200px]",
-                          activeId && activeDay !== day.id ? "bg-muted/50" : ""
-                        )}
-                      >
-                        {sortedActivityIds.length === 0 ? (
-                          <div className="flex flex-col items-center justify-center h-[200px] text-center p-4">
-                            <Calendar className="h-8 w-8 text-muted-foreground mb-2" />
-                            <p className="text-sm text-muted-foreground">
-                              {day.id === "unassigned"
-                                ? "Drag activities here that are not assigned to a specific day"
-                                : "No activities scheduled for this day yet"}
-                            </p>
-                            {day.id !== "unassigned" && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="mt-2"
-                                onClick={() => {
-                                  setNewActivity({
-                                    content: "",
-                                    time: "",
-                                    location: "",
-                                    duration: "",
-                                    type: "sightseeing",
-                                    day: day.id,
-                                  })
-                                  setIsAddActivityOpen(true)
-                                }}
-                              >
-                                <Plus className="h-4 w-4 mr-1" /> Add Activity
-                              </Button>
+                      <Droppable droppableId={day.id}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.droppableProps}
+                            className={cn(
+                              "p-2 rounded-lg min-h-[200px] flex-1",
+                              snapshot.isDraggingOver ? "bg-muted/80" : "bg-muted/40"
                             )}
-                          </div>
-                        ) : (
-                          <SortableContext 
-                            items={sortedActivityIds}
-                            strategy={verticalListSortingStrategy}
                           >
-                            {sortedActivityIds.map((activityId) => (
-                              <SortableActivityItem 
-                                key={activityId} 
-                                id={activityId} 
-                                day={day.id} 
-                                openEditDialog={openEditDialog}
-                                handleDeleteActivity={handleDeleteActivity}
-                              />
-                            ))}
-                          </SortableContext>
+                            {sortedActivityIds.length === 0 ? (
+                              <div className="flex flex-col items-center justify-center h-[200px] text-center p-4">
+                                <Calendar className="h-8 w-8 text-muted-foreground mb-2" />
+                                <p className="text-sm text-muted-foreground">
+                                  {day.id === "unassigned"
+                                    ? "Drag activities here that are not assigned to a specific day"
+                                    : "No activities scheduled for this day yet"}
+                                </p>
+                                {day.id !== "unassigned" && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="mt-2"
+                                    onClick={() => {
+                                      setNewActivity({
+                                        content: "",
+                                        time: "",
+                                        location: "",
+                                        duration: "",
+                                        type: "sightseeing",
+                                        day: day.id,
+                                      })
+                                      setIsAddActivityOpen(true)
+                                    }}
+                                  >
+                                    <Plus className="h-4 w-4 mr-1" /> Add Activity
+                                  </Button>
+                                )}
+                              </div>
+                            ) : (
+                              sortedActivityIds.map((activityId, index) => {
+                                const activity = data.activities[activityId];
+                                return (
+                                  <ActivityItem
+                                    key={activityId}
+                                    activity={activity}
+                                    index={index}
+                                    dayId={day.id}
+                                    openEditDialog={openEditDialog}
+                                    handleDeleteActivity={handleDeleteActivity}
+                                  />
+                                );
+                              })
+                            )}
+                            {provided.placeholder}
+                          </div>
                         )}
-                      </div>
+                      </Droppable>
                     </CardContent>
                   </Card>
                 </div>
               )
             })}
           </div>
-        </DndContext>
+        </DragDropContext>
       </div>
     </div>
   )
 }
 
-// Sortable Activity Item component
-function SortableActivityItem({ id, day, openEditDialog, handleDeleteActivity }) {
-  const activity = initialData.activities[id];
-  
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({ id: id });
-  
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-  
+// Activity item component for drag and drop
+function ActivityItem({ activity, index, dayId, openEditDialog, handleDeleteActivity }) {
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      className="mb-2"
-    >
-      <Card className="bg-card overflow-hidden">
-        <CardContent className="p-0">
-          <div className="p-3">
-            {/* Activity header */}
-            <div className="flex justify-between items-start mb-2">
-              <div>
-                <h3 className="font-medium text-sm mb-1">{activity.content}</h3>
-                <div className="flex flex-wrap gap-1 text-xs text-muted-foreground">
-                  <div className="flex items-center">
-                    <Clock className="h-3 w-3 mr-1" />
-                    {activity.time}
-                    {activity.duration && ` · ${activity.duration}`}
-                  </div>
-                  {activity.location && (
-                    <div className="flex items-center">
-                      <MapPin className="h-3 w-3 mr-1" />
-                      {activity.location}
+    <Draggable draggableId={activity.id} index={index}>
+      {(provided, snapshot) => (
+        <div
+          ref={provided.innerRef}
+          {...provided.draggableProps}
+          {...provided.dragHandleProps}
+          className="mb-3"
+          style={{
+            ...provided.draggableProps.style,
+          }}
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05 }}
+          >
+            <Card
+              className={cn(
+                "shadow-sm transition-all duration-200",
+                snapshot.isDragging && "shadow-md rotate-2",
+              )}
+            >
+              <CardContent className="p-3">
+                {/* Activity header */}
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <h3 className="font-medium text-sm mb-1">{activity.content}</h3>
+                    <div className="flex flex-wrap gap-1 text-xs text-muted-foreground">
+                      <div className="flex items-center">
+                        <Clock className="h-3 w-3 mr-1" />
+                        {activity.time}
+                        {activity.duration && ` · ${activity.duration}`}
+                      </div>
+                      {activity.location && (
+                        <div className="flex items-center">
+                          <MapPin className="h-3 w-3 mr-1" />
+                          {activity.location}
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 rounded-full"
+                      >
+                        <MoreVertical className="h-3 w-3" />
+                        <span className="sr-only">Actions</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-36">
+                      <DropdownMenuItem onClick={() => openEditDialog(activity.id, dayId)}>
+                        <Edit className="h-3 w-3 mr-2" /> Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => handleDeleteActivity(activity.id, dayId)} className="text-red-600">
+                        <Trash2 className="h-3 w-3 mr-2" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0 rounded-full"
+                
+                {/* Activity footer */}
+                <div className="flex justify-between items-center mt-2">
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-xs",
+                      activityTypeColors[activity.type]
+                    )}
                   >
-                    <MoreVertical className="h-3 w-3" />
-                    <span className="sr-only">Actions</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-36">
-                  <DropdownMenuItem onClick={() => openEditDialog(activity.id, day)}>
-                    <Edit className="h-3 w-3 mr-2" /> Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => handleDeleteActivity(activity.id, day)} className="text-red-600">
-                    <Trash2 className="h-3 w-3 mr-2" /> Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            
-            {/* Activity footer */}
-            <div className="flex justify-between items-center mt-2">
-              <Badge
-                variant="outline"
-                className={cn(
-                  "text-xs",
-                  activityTypeColors[activity.type]
-                )}
-              >
-                {activity.type}
-              </Badge>
-              <div className="flex -space-x-2">
-                {activity.assignees.map((assignee, index) => (
-                  <Avatar key={index} className="h-5 w-5 border-background border">
-                    <AvatarImage src={assignee.avatar} alt={assignee.name} />
-                    <AvatarFallback className="text-[10px]">
-                      {assignee.name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                ))}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+                    {activity.type}
+                  </Badge>
+                  <div className="flex -space-x-2">
+                    {activity.assignees.map((assignee, index) => (
+                      <Avatar key={index} className="h-5 w-5 border-background border">
+                        <AvatarImage src={assignee.avatar} alt={assignee.name} />
+                        <AvatarFallback className="text-[10px]">
+                          {assignee.name.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+      )}
+    </Draggable>
   );
 }

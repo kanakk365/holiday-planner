@@ -145,9 +145,9 @@ export function ExpenseTracker() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
-        <h1 className="text-2xl font-bold">Expense Tracker</h1>
-        <Button onClick={() => setShowAddExpense(!showAddExpense)}>
+      <div className="flex  sm:flex-row justify-between items-center gap-2 sm:gap-0">
+        <h1 className="sm:text-2xl text-xl font-bold">Expense Tracker</h1>
+        <Button onClick={() => setShowAddExpense(!showAddExpense)} className="  " >
           <Plus className="mr-2 h-4 w-4" /> Add Expense
         </Button>
       </div>

@@ -128,7 +128,7 @@ export function TableView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
+      <div className="flex  sm:flex-row justify-between items-center gap-2 sm:gap-0">
         <h1 className="text-2xl font-bold">Holiday Tasks</h1>
         <Button>
           <Plus className="mr-2 h-4 w-4" /> Add Task

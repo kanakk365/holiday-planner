@@ -115,8 +115,8 @@ export function StatusOverview() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
-        <h1 className="text-2xl font-bold">Holiday Status Overview</h1>
+      <div className="flex sm:flex-row justify-between items-center gap-2 sm:gap-0">
+        <h1 className="sm:text-2xl text-xl font-bold">Status Overview</h1>
         <Button onClick={() => window.dispatchEvent(new CustomEvent('changeView', { detail: 'calendar' }))}>
           <Calendar className="mr-2 h-4 w-4" /> View Calendar
         </Button>
